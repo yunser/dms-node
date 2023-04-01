@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "moduleResolution": "Node",
+        "module": "CommonJS", 
+        "noImplicitAny": false
+        ,
+        "removeComments": false,
+        "allowJs": true,
+        "sourceMap": true,
+        "baseUrl": ".",
+        "outDir": "dist"
+    },
+    "include": [
+        "src/**/*.ts"
+    ]
+}
