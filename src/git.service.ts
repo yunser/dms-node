@@ -238,6 +238,13 @@ export class GitService {
         }
     }
 
+    async branchRename(body) {
+        const { projectPath, oldBranchName, newBranchName } = body
+        const git = await this.getClient(projectPath)
+        const commands = ['branch', '-m', oldBranchName, newBranchName]
+        return await this._command(git, commands)
+    }
+
     async branchDelete(body) {
         const { projectPath, name, force = false, deleteRemote = false } = body
         const git = await this.getClient(projectPath)

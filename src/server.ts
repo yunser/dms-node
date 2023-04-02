@@ -433,6 +433,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/git/branch/delete`, async (ctx) => {
         ctx.body = await gitService.branchDelete(ctx.request.body)
     })
+    router.post(`/git/branch/rename`, async (ctx) => {
+        ctx.body = await gitService.branchRename(ctx.request.body)
+    })
     router.post(`/git/status`, async (ctx) => {
         ctx.body = await gitService.status(ctx.request.body)
     })
