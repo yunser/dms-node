@@ -1,13 +1,13 @@
 {
   "name": "@yunser/dms-cli",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Data Manager, for MySQL, Redis, Git, SSH, SFTP, OSS and WebDAV",
   "main": "./dist/index.js",
   "author": "Yunser",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yunser/dms-public"
+    "url": "https://github.com/yunser/dms-node"
   },
   "bin": {
     "dms": "./dist/index.js"
