@@ -400,6 +400,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/git/reset`, async (ctx) => {
         ctx.body = await gitService.reset(ctx.request.body)
     })
+    router.post(`/git/fileDiscard`, async (ctx) => {
+        ctx.body = await gitService.fileDiscard(ctx.request.body)
+    })
     router.post(`/git/commit/list`, async (ctx) => {
         ctx.body = await gitService.commitList(ctx.request.body)
     })
