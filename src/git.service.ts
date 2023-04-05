@@ -144,7 +144,8 @@ export class GitService {
         const content = fs.readFileSync(_filePath, 'utf-8')
         const lines = content.split('\n')
         if (type == 'added') {
-            if (lines[line] != lineContent) {
+            // TODO hack LF CRLF
+            if (lines[line].trim() != lineContent.trim()) {
                 throw new Error('check content fail')
             }
             lines.splice(line, 1)
