@@ -138,6 +138,26 @@ export class GitService {
         return await this._command(git, ['reset', 'HEAD', ...files])
     }
 
+    async fileDiscard(body) {
+        const { projectPath, filePath, type, line, lineContent } = body
+        const _filePath = path.resolve(projectPath, filePath)
+        const content = fs.readFileSync(_filePath, 'utf-8')
+        const lines = content.split('\n')
+        if (type == 'added') {
+            if (lines[line] != lineContent) {
+                throw new Error('check content fail')
+            }
+            lines.splice(line, 1)
+        }
+        else if (type == 'deleted') {
+            lines.splice(line + 1, 0, lineContent)
+        }
+        else {
+            throw new Error('type is error')
+        }
+        fs.writeFileSync(_filePath, lines.join('\n'))
+    }
+
     async add(body) {
         const { projectPath, files } = body
         // console.log('files', files)

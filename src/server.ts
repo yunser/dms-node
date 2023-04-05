@@ -1,11 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-
 import * as Koa from 'koa'
 import * as Router from 'koa-router'
 import * as koaBody from 'koa-body'
-import * as statics from 'koa-static'
 import * as urlencode from 'urlencode'
 
 import { FileService } from './file.service'
@@ -399,6 +397,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/git/reset`, async (ctx) => {
         ctx.body = await gitService.reset(ctx.request.body)
+    })
+    router.post(`/git/fileDiscard`, async (ctx) => {
+        ctx.body = await gitService.fileDiscard(ctx.request.body)
     })
     router.post(`/git/commit/list`, async (ctx) => {
         ctx.body = await gitService.commitList(ctx.request.body)
