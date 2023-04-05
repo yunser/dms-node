@@ -4,6 +4,7 @@ import * as fs from 'fs'
 import * as mkdirp from 'mkdirp'
 import { exec } from "child_process";
 import * as path from 'path'
+import * as os from 'os'
 
 function localExec(cmd: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -852,6 +853,12 @@ export class GitService {
     async graph(body) {
         const { projectPath, limit, file, author } = body
         const git = await this.getClient(projectPath)
+        // 下面的功能在 Windows 上会报错，故暂不支持 Windows
+        if (os.platform() == 'win32') {
+            return {
+                result: 'not support in Windows',
+            }
+        }
         // git log --oneline --graph --decorate --all
         const commands = [`log', '--oneline', '--graph', '--decorate', '--all`]
         const log = await git.log({
