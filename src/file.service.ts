@@ -9,9 +9,10 @@ const nodePath = path
 // const cp = require('child-process');
 // console.log('cp', cp)
 import * as SftpClient from 'ssh2-sftp-client'
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { uid } from 'uid'
 import tsdav, { DAVNamespace } from 'tsdav';
+import * as os from 'os'
 import * as Url from 'url-parse'
 // import axios from 'axios';
 import * as sqlite3 from 'sqlite3'
@@ -21,7 +22,7 @@ import * as mkdirp from 'mkdirp'
 // const { mkdirp } = require('mkdirp')
 const FormData = require('form-data')
 
-function localExec(cmd: string) {
+function localExec(cmd: string): Promise<string> {
     return new Promise((resolve, reject) => {
         exec(cmd, (err, stdout, stderr) => {
             console.log('err', err)
@@ -344,6 +345,7 @@ function _copy(fromPath, toPath) {
 }
 
 const folderPath = '/Users/yunser/app/dms-new'
+const g_platform = os.platform()
 
 export class FileService {
 
@@ -357,8 +359,33 @@ export class FileService {
     }
 
     async info(body) {
+        let disks = []
+        
+        if (g_platform == 'win32') {
+            // https://www.cnblogs.com/blackmanba/articles/windows-nodejs-show-system-letter.html
+            // 不支持 Windows XP
+            const stdout = await localExec('wmic logicaldisk get caption')
+            // Caption
+            // C:
+            // D:
+            // E:
+            // F:
+            // 
+            disks = stdout.split('\n')
+                .filter(line => line.includes(':'))
+                .map(item => item.trim())
+                .map(disk => {
+                    return {
+                        name: disk,
+                        path: disk + path.sep
+                    }
+                })
+        }
         return {
+            os: g_platform,
             homePath: USER_HOME,
+            disks,
+            pathSeparator: path.sep,
         }
     }
 
@@ -1510,11 +1537,23 @@ export class FileService {
     async openInFinder(body) {
         const { path } = body
         const stat = fs.statSync(path)
-        if (stat.isFile()) {
-            exec(`open ${path} -R`)
+        if (g_platform == 'win32') {
+            if (stat.isFile()) {
+                // TODO 优化：选中文件
+                const folderName = nodePath.dirname(path)
+                exec(`start ${folderName} -R`)
+            }
+            else {
+                exec(`start ${path}`)
+            }
         }
         else {
-            exec(`open ${path}`)
+            if (stat.isFile()) {
+                exec(`open ${path} -R`)
+            }
+            else {
+                exec(`open ${path}`)
+            }
         }
         return {}
     }
@@ -1546,16 +1585,31 @@ export class FileService {
     async openInTerminal(body) {
         const { sourceType, path } = body
         const stat = fs.statSync(path)
-        if (stat.isFile()) {
-            console.warn('not support file')
-            // exec(`open ${path} -R`)
+        if (g_platform == 'win32') {
+            if (stat.isFile()) {
+                throw new Error('not support file')
+            }
+            else {
+                exec(`start cmd.exe /k "cd ${path}"`, ((stdout, stderr) => {
+                    console.log('stdout, stderr', stdout, stderr)
+                }))
+            }
+        }
+        else if (g_platform == 'darwin') {
+            if (stat.isFile()) {
+                throw new Error('not support file')
+            }
+            else {
+                // open [路径] -a [软件名称]
+                exec(`open ${path} -a /System/Applications/Utilities/Terminal.app`, ((stdout, stderr) => {
+                    console.log('stdout, stderr', stdout, stderr)
+                }))
+            }
         }
         else {
-            // open [路径] -a [软件名称]
-            exec(`open ${path} -a /System/Applications/Utilities/Terminal.app`, ((stdout, stderr) => {
-                console.log('stdout, stderr', stdout, stderr)
-            }))
+            throw new Error('not support platform')
         }
+        
         return {}
     }
 
