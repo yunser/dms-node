@@ -481,6 +481,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/git/cat`, async (ctx) => {
         ctx.body = await gitService.cat(ctx.request.body)
     })
+    router.post(`/git/info`, async (ctx) => {
+        ctx.body = await gitService.getInfo(ctx.request.body)
+    })
     router.post(`/git/getConfig`, async (ctx) => {
         ctx.body = await gitService.getConfig(ctx.request.body)
     })

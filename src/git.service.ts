@@ -553,6 +553,12 @@ export class GitService {
         }
     }
 
+    async getInfo(body) {
+        return {
+            pathSeparator: path.sep,
+        }
+    }
+
     async getConfig(body) {
         const { projectPath, remoteName, branchName } = body
         const git = await this.getClient(projectPath)
