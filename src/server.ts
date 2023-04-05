@@ -1,11 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-
 import * as Koa from 'koa'
 import * as Router from 'koa-router'
 import * as koaBody from 'koa-body'
-import * as statics from 'koa-static'
 import * as urlencode from 'urlencode'
 
 import { FileService } from './file.service'
