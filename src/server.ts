@@ -485,8 +485,20 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/git/info`, async (ctx) => {
         ctx.body = await gitService.getInfo(ctx.request.body)
     })
+    router.post(`/git/getSshPublicKey`, async (ctx) => {
+        ctx.body = await gitService.getSshPublicKey(ctx.request.body)
+    })
+    router.post(`/git/getGlobalConfig`, async (ctx) => {
+        ctx.body = await gitService.getGlobalConfig(ctx.request.body)
+    })
+    router.post(`/git/setGlobalConfig`, async (ctx) => {
+        ctx.body = await gitService.setGlobalConfig(ctx.request.body)
+    })
     router.post(`/git/getConfig`, async (ctx) => {
         ctx.body = await gitService.getConfig(ctx.request.body)
+    })
+    router.post(`/git/setConfig`, async (ctx) => {
+        ctx.body = await gitService.setConfig(ctx.request.body)
     })
     router.post(`/git/checkoutFile`, async (ctx) => {
         ctx.body = await gitService.checkoutFile(ctx.request.body)
@@ -554,6 +566,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
         ctx.set('Content-disposition', `attachment; filename*=UTF-8''${urlencode(ctx.request.query.fileName)}`)
         ctx.set('Content-Type', 'application/octet-stream')
         ctx.body = await fileService.download(ctx.request.query)
+    })
+    router.post(`/file/downloadFromUrl`, async (ctx) => {
+        ctx.body = await fileService.downloadFromUrl(ctx.request.body)
     })
     router.post(`/file/collection/list`, async (ctx) => {
         ctx.body = await fileService.collectionList(ctx.request.body)

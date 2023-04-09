@@ -19,7 +19,9 @@ import * as sqlite3 from 'sqlite3'
 import moment = require('moment');
 import { closeWebSocketBySftpConnectionId } from './ssh.service';
 import * as mkdirp from 'mkdirp'
+import * as https from 'https'
 // const { mkdirp } = require('mkdirp')
+
 const FormData = require('form-data')
 
 function localExec(cmd: string): Promise<string> {
@@ -295,6 +297,8 @@ function handleFolder(folderPath, r = false) {
                 name: fileName,
                 path: filePath,
                 updateTime: stat.mtime,
+                createTime: stat.birthtime,
+                accessTime: stat.atime,
                 size: stat.size,
                 // _stat: stat,
                 isSymbolicLink: stat.isSymbolicLink() ? true : undefined,
@@ -1532,6 +1536,38 @@ export class FileService {
             await g_sftp.fastGet(path, tmpPath)
             return fs.readFileSync(tmpPath)
         }
+    }
+
+    async downloadFromUrl(body) {
+        const { url, savePath } = body
+        function downloadFile(fileUrl: string, savePath: string) {
+            return new Promise((resolve, reject) => {
+                https.get(fileUrl, (res) => {
+                    const { statusCode } = res;
+                    if (statusCode !== 200) {
+                        console.error(`请求失败，状态码：${statusCode}`);
+                        res.resume(); // 释放响应的内存
+                        return reject()
+                    }
+
+                    res.on('data', (chunk) => {
+                        fs.appendFileSync(savePath, chunk); // 将下载的每个数据块写入文件
+                    });
+
+                    res.on('end', () => {
+                        console.log('文件下载成功！');
+                        resolve(null)
+                    });
+                })
+                .on('error', (err) => {
+                    console.error(`下载失败：${err.message}`);
+                    reject(err)
+                })
+            })
+
+        }
+        await downloadFile(url, savePath)
+        return {}
     }
 
     async openInFinder(body) {
