@@ -1,4 +1,4 @@
-import { simpleGit, ResetMode, SimpleGit } from 'simple-git'
+import { simpleGit, ResetMode, SimpleGit, GitConfigScope } from 'simple-git'
 import { uid } from "uid";
 import * as fs from 'fs'
 import * as mkdirp from 'mkdirp'
@@ -483,8 +483,10 @@ export class GitService {
     async show(body) {
         const { projectPath, remoteName, commit } = body
         const git = await this.getClient(projectPath)
-        const params = [commit, '--stat']
-        const res = await git.show(params)
+        // const params = ['show', commit, '--stat', '--name-only']
+        const params = ['show', commit, '--stat', '--name-status']
+        // const res = await git.show(params)
+        const res = await git.raw(params)
         // console.log('show/res', res)
         // console.log('show/res/end')
         const arr = res.split('\n')
@@ -497,7 +499,11 @@ export class GitService {
                 break
             }
             if (!line.includes('changed')) {
-                files.push(line.split('|')[0].trim())
+                const [status, name] = line.split(/\s+/)
+                files.push({
+                    status: status.trim(),
+                    name: name.trim(),
+                })
             }
         }
         // console.log('files', files)
@@ -579,22 +585,66 @@ export class GitService {
             pathSeparator: path.sep,
         }
     }
+    
+    async getSshPublicKey(body) {
+        const git = simpleGit()
+        // const configs = await simpleGit().listConfig()
 
-    async getConfig(body) {
-        const { projectPath, remoteName, branchName } = body
-        const git = await this.getClient(projectPath)
-        const userNameconfig = await git.getConfig('user.name')
-        const userEmailconfig = await git.getConfig('user.email')
-        // console.log('res', res)
-        // await git.checkoutLocalBranch(branchName)
+        const stdout = await localExec('cat ~/.ssh/id_rsa.pub')
+
+        return {
+            sshRsa: stdout,
+        }
+    }
+
+    async getGlobalConfig(body) {
+        const git = simpleGit()
+        // const configs = await simpleGit().listConfig()
+
+        const userName = await git.getConfig('user.name')
+        const userEmail = await git.getConfig('user.email')
+
         return {
             config: {
                 user: {
-                    name: userNameconfig.value,
-                    email: userEmailconfig.value,
+                    name: userName.value,
+                    email: userEmail.value,
                 }
             },
         }
+    }
+
+    async setGlobalConfig(body) {
+        const { projectPath, user } = body
+        const { name, email } = user
+        const git = await this.getClient(projectPath)
+        await git.addConfig('user.name', name, false, GitConfigScope.global)
+        await git.addConfig('user.email', email, false, GitConfigScope.global)
+        return {}
+    }
+    
+    async getConfig(body) {
+        const { projectPath } = body
+        const git = await this.getClient(projectPath)
+        const userName = await git.getConfig('user.name')
+        const userEmail = await git.getConfig('user.email')
+        return {
+            config: {
+                user: {
+                    name: userName.value,
+                    email: userEmail.value,
+                }
+            },
+        }
+    }
+
+    async setConfig(body) {
+        const { projectPath, user } = body
+        const { name, email } = user
+        const git = await this.getClient(projectPath)
+        await git.addConfig('user.name', name, false, GitConfigScope.local)
+        await git.addConfig('user.email', email, false, GitConfigScope.local)
+        return {}
     }
 
     async checkout(body) {
