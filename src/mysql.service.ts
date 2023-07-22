@@ -9,10 +9,35 @@ import * as sqlite3 from 'sqlite3'
 import { Client } from 'pg'
 import { closeWebSocketByDbConnectionId } from './ssh.service'
 // import * as alasql from 'alasql'
+
+const nodePath = path
 const alasql = require('alasql')
 
 var Connection = require('tedious').Connection;
 var Request = require('tedious').Request;
+
+const g_taskMap = {}
+
+function sleep(ms: number) {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve(null)
+        }, ms)
+    })
+}
+
+function getValue(value) {
+    if (typeof value == 'number') {
+        return `${value}`
+    }
+    if (value === null) {
+        return `NULL`
+    }
+    if (value instanceof Date) {
+        return `'${moment(value).format('YYYY-MM-DD HH:mm:ss')}'`
+    }
+    return `'${value.replace(/\n/g, '\\n').replace(/'/g, '\\\'')}'`
+}
 
 function dbQueryList(hdb: sqlite3.Database, sql: string): Promise<any[]> {
     // console.log('sql', sql)
@@ -793,6 +818,106 @@ export class MySqlService {
                 $_name: item.SCHEMA_NAME || item.schema_name,
             }
         })
+    }
+
+    async taskDetail(params) {
+        const { id } = params
+        return {
+            task: g_taskMap[id] || null,
+        }
+    }
+
+    async exportDataDownload(params) {
+        const { taskId } = params
+        const task = g_taskMap[taskId]
+        return fs.readFileSync(task.path)
+    }
+
+    async exportTableData(params) {
+        if (!params.connectionId) {
+            throw new ParamException('Need connectionId')
+        }
+        const { dbName, tableName, pageSize = 1000 } = params
+        const sql = `SELECT COUNT(*) FROM \`${dbName}\`.\`${tableName}\``
+
+        const countResult = await this.query(sql, {
+            connectionId: params.connectionId,
+        })
+        const total = countResult[0]['COUNT(*)']
+
+        const taskId = uid(32)
+
+        g_taskMap[taskId] = {
+            total,
+            current: 0,
+            status: 'ing',
+            id: taskId,
+        }
+
+        this._exportData({
+            connectionId: params.connectionId,
+            dbName,
+            tableName,
+            total,
+            taskId,
+            pageSize,
+        })
+
+        return {
+            taskId,
+        }
+    }
+
+    async _exportData({ connectionId, dbName, tableName, total, taskId, pageSize = 1000 }) {
+        const totalPage = Math.ceil(total / pageSize)
+        
+        const task = g_taskMap[taskId]
+
+        const colSql = `select * from \`information_schema\`.\`COLUMNS\` where TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = '${tableName}' ORDER BY ORDINAL_POSITION ASC`
+        const columns = await this.query(colSql, {
+            connectionId,
+        })
+
+        const exportSqls = []
+        for (let page = 0; page < totalPage; page++) {
+            const offset = page * pageSize
+            const dataSql = `SELECT * FROM \`${dbName}\`.\`${tableName}\` LIMIT ${pageSize} OFFSET ${offset}`
+
+            const dataList = await this.query(dataSql, {
+                connectionId,
+            })
+
+            for (let data of dataList) {
+                const fields = []
+                const values = []
+                for (let column of columns) {
+                    fields.push(column.COLUMN_NAME)
+                    values.push(data[column.COLUMN_NAME])
+                }
+                
+                const fields_sql = fields.map(field => `\`${field}\``).join(', ')
+                const values_sql = values.map(value => getValue(value)).join(', ')
+                const exportSql = `INSERT INTO \`${dbName}\`.\`${tableName}\` (${fields_sql}) VALUES (${values_sql});`
+                exportSqls.push(exportSql)
+            }
+
+            if (task) {
+                task.current += pageSize
+            }
+            // await sleep(2 * 1000)
+        }
+
+        const allSql = exportSqls.join('\n') + '\n'
+
+        // TODO
+        const tmpPath = nodePath.join(appFolder, 'tmp.sql')
+        fs.writeFileSync(tmpPath, allSql, 'utf-8')
+
+        if (task) {
+            task.current = total
+            task.status = 'success'
+            task.path = tmpPath
+        }
     }
 
     async execSqlSimple(params) {

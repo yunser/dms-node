@@ -302,6 +302,20 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
         ctx.body = await mySqlService.tables(ctx.request.body)
     })
 
+    router.post(`/mysql/exportTableData`, async (ctx) => {
+        ctx.body = await mySqlService.exportTableData(ctx.request.body)
+    })
+    router.get(`/mysql/exportDataDownload`, async (ctx) => {
+        const fileName = 'data.sql'
+        ctx.set('Content-disposition', `attachment; filename*=UTF-8''${fileName}`)
+        ctx.set('Content-Type', 'application/octet-stream')
+        ctx.body = await mySqlService.exportDataDownload(ctx.request.query)
+    })
+
+    router.post(`/mysql/task/detail`, async (ctx) => {
+        ctx.body = await mySqlService.taskDetail(ctx.request.body)
+    })
+
     router.post(`/mysql/execSqlSimple`, async (ctx) => {
         ctx.body = await mySqlService.execSqlSimple(ctx.request.body)
     })
