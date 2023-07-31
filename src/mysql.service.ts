@@ -827,6 +827,76 @@ export class MySqlService {
         }
     }
 
+    async createFunction(params) {
+        if (!params.connectionId) {
+            throw new ParamException('Need connectionId')
+        }
+        const { sql } = params
+        await this.query(sql, {
+            connectionId: params.connectionId,
+        })
+        return {}
+    }
+
+    async runSqls(params) {
+        if (!params.connectionId) {
+            throw new ParamException('Need connectionId')
+        }
+        const { sqls } = params
+
+        const taskId = uid(32)
+        g_taskMap[taskId] = {
+            total: sqls.length,
+            current: 0,
+            status: 'ing',
+            id: taskId,
+        }
+
+        this._runSqls({
+            connectionId: params.connectionId,
+            taskId,
+            sqls,
+        })
+
+        return {
+            taskId,
+        }
+    }
+
+    async _runSqls(params) {
+        const { connectionId, sqls = [], taskId } = params
+        const task = g_taskMap[taskId]
+        let isError = false
+        let error
+        let errorSql
+        for (let idx = 0; idx < sqls.length; idx++) {
+            task.current = idx
+
+            const sql = sqls[idx]
+            try {
+                await this.query(sql, {
+                    connectionId,
+                })
+            }
+            catch (err) {
+                console.error('err', err)
+                isError = true
+                error = err.toString()
+                errorSql = sql
+            }
+        }
+        if (isError) {
+            task.status = 'fail'
+            task.error = error
+            task.sql = errorSql
+        }
+        else {
+            task.current = sqls.length - 1
+            task.status = 'success'
+        }
+        console.log('_runSqls/finish', )
+    }
+
     async exportDataDownload(params) {
         const { taskId } = params
         const task = g_taskMap[taskId]
@@ -852,6 +922,7 @@ export class MySqlService {
             current: 0,
             status: 'ing',
             id: taskId,
+            hasFile: true,
         }
 
         this._exportData({
@@ -914,7 +985,7 @@ export class MySqlService {
         fs.writeFileSync(tmpPath, allSql, 'utf-8')
 
         if (task) {
-            task.current = total
+            task.current = total - 1
             task.status = 'success'
             task.path = tmpPath
         }

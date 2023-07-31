@@ -311,7 +311,12 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
         ctx.set('Content-Type', 'application/octet-stream')
         ctx.body = await mySqlService.exportDataDownload(ctx.request.query)
     })
-
+    router.post(`/mysql/runSqls`, async (ctx) => {
+        ctx.body = await mySqlService.runSqls(ctx.request.body)
+    })
+    router.post(`/mysql/createFunction`, async (ctx) => {
+        ctx.body = await mySqlService.createFunction(ctx.request.body)
+    })
     router.post(`/mysql/task/detail`, async (ctx) => {
         ctx.body = await mySqlService.taskDetail(ctx.request.body)
     })
