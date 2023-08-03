@@ -9,7 +9,7 @@ import * as path from 'path'
 import { WebSocket } from 'ws'
 import { Client as SshClient } from 'ssh2'
 import * as utf8 from 'utf8'
-import * as pty from 'node-pty'
+// import * as pty from 'node-pty'
 import moment = require("moment");
 import { closeWebSocketServer } from "./socket.service";
 
@@ -397,6 +397,8 @@ function createSocket(ws: WebSocket) {
             return sshClient
         }
         else {
+            throw new Error('local terminal is no longer supported from v0.21.0')
+            let pty:any = null
             const ptyProcess = pty.spawn(shell, [], {
                 name: 'xterm-color',
                 // cols: 80,
