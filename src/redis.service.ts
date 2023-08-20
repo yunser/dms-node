@@ -6,6 +6,7 @@ import * as sqlite3 from 'sqlite3'
 import * as moment from 'moment'
 import { closeWebSocketByConnectionId, sendRedisMsg } from "./ssh.service";
 const stringSplit = require('string-split-by')
+const axios = require('axios')
 
 // console.log('stringSplit', stringSplit('  set asd "a b  c"  ', /\s/))
 
@@ -498,6 +499,11 @@ export class RedisService {
             throw new Error('key 不能为空')
         }
 
+        if ((g_redis as any).httpProxyUrl) {
+            const res = await axios.post(`${(g_redis as any).httpProxyUrl}/redis/get`, data)
+            return res.data
+        }
+
         let debug = null
         const type = await g_redis.type(key)
         let size = null
@@ -735,6 +741,13 @@ export class RedisService {
     async getConfig(data) {
         const { key } = data
         const g_redis = await getRedis(data)
+
+
+        if ((g_redis as any).httpProxyUrl) {
+            const res = await axios.post(`${(g_redis as any).httpProxyUrl}/redis/config`, data)
+            return res.data
+        }
+        
         // if (!key) {
         //     throw new Error('key 不能为空')
         // }
@@ -806,6 +819,12 @@ export class RedisService {
         if (!value) {
             throw new Error('value 不能为空')
         }
+
+        if ((g_redis as any).httpProxyUrl) {
+            const res = await axios.post(`${(g_redis as any).httpProxyUrl}/redis/set`, data)
+            return res.data
+        }
+
         dbInsertCommands([
             `SET ${key} ${value}`
         ])
@@ -839,8 +858,19 @@ export class RedisService {
             db,
             test = false,
             userName,
+            httpProxyUrl,
         } = config
 
+        if (httpProxyUrl) {
+            clients[connectionId] = {
+                redis: {
+                    httpProxyUrl,
+                }
+            }
+            return {
+                connectionId,
+            }
+        }
         let g_redis
         const params = {
             host,
@@ -943,6 +973,12 @@ export class RedisService {
 
     async keys(body) {
         const g_redis = await getRedis(body)
+
+        if ((g_redis as any).httpProxyUrl) {
+            const res = await axios.post(`${(g_redis as any).httpProxyUrl}/redis/keys`, body)
+            return res.data
+        }
+
         const { db = 0, keyword, cursor, page = 1, pageSize = 100 } = body
         // @ts-ignore
         g_redis.__db = db
