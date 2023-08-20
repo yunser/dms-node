@@ -581,8 +581,10 @@ export class GitService {
     }
 
     async getInfo(body) {
+        const { projectPath } = body
         return {
             pathSeparator: path.sep,
+            pathExists: fs.existsSync(projectPath),
         }
     }
     
