@@ -907,11 +907,12 @@ export class MySqlService {
         if (!params.connectionId) {
             throw new ParamException('Need connectionId')
         }
-        const { dbName, tableName, pageSize = 1000 } = params
+        const { connectionId } = params
+        const { dbName, tableName, pageSize = 1000, type } = params
         const sql = `SELECT COUNT(*) FROM \`${dbName}\`.\`${tableName}\``
 
         const countResult = await this.query(sql, {
-            connectionId: params.connectionId,
+            connectionId,
         })
         const total = countResult[0]['COUNT(*)']
 
@@ -926,12 +927,14 @@ export class MySqlService {
         }
 
         this._exportData({
-            connectionId: params.connectionId,
+            connectionId,
             dbName,
             tableName,
             total,
             taskId,
             pageSize,
+            // prefix,
+            type,
         })
 
         return {
@@ -939,10 +942,23 @@ export class MySqlService {
         }
     }
 
-    async _exportData({ connectionId, dbName, tableName, total, taskId, pageSize = 1000 }) {
+    async _exportData({ connectionId, type = '', dbName, tableName, total, taskId, 
+        pageSize = 1000, handleStorage, onProgress }: any) {
+        
         const totalPage = Math.ceil(total / pageSize)
         
         const task = g_taskMap[taskId]
+
+        let prefix = ''
+        if (type == 'dataAndStruct') {
+            const structSql = `SHOW CREATE TABLE \`${dbName}\`.\`${tableName}\``
+            const results = await this.query(structSql, {
+                connectionId,
+            })
+            prefix = results[0]['Create Table'] + '\n\n'
+
+        }
+
 
         const colSql = `select * from \`information_schema\`.\`COLUMNS\` where TABLE_SCHEMA = '${dbName}' AND TABLE_NAME = '${tableName}' ORDER BY ORDINAL_POSITION ASC`
         const columns = await this.query(colSql, {
@@ -975,19 +991,29 @@ export class MySqlService {
             if (task) {
                 task.current += pageSize
             }
+            onProgress && onProgress({
+                tableName,
+                offset,
+            })
+            // task.description = `正在导出 ${tableName}: ${}`
             // await sleep(2 * 1000)
         }
 
         const allSql = exportSqls.join('\n') + '\n'
 
-        // TODO
-        const tmpPath = nodePath.join(appFolder, 'tmp.sql')
-        fs.writeFileSync(tmpPath, allSql, 'utf-8')
-
-        if (task) {
-            task.current = total - 1
-            task.status = 'success'
-            task.path = tmpPath
+        if (handleStorage) {
+            handleStorage(prefix + allSql)
+        }
+        else {
+            // TODO
+            const tmpPath = nodePath.join(appFolder, 'tmp.sql')
+            fs.writeFileSync(tmpPath, prefix + allSql, 'utf-8')
+    
+            if (task) {
+                task.current = total - 1
+                task.status = 'success'
+                task.path = tmpPath
+            }
         }
     }
 
@@ -1522,4 +1548,91 @@ and TABLE_NAME = '${tableName}'`, {
         const content = fs.readFileSync('/Users/yunser/app/dms-projects/dms-cli/_mysql_compare.json', 'utf-8')
         return JSON.parse(content)
     }
+
+    async backup(params) {
+        if (!params.connectionId) {
+            throw new ParamException('Need connectionId')
+        }
+        const { dbName } = params
+        const conn = g_connections[params.connectionId]
+        
+
+        const tableSql = `SELECT * FROM \`information_schema\`.\`TABLES\` where TABLE_SCHEMA = '${dbName}' and TABLE_TYPE = 'BASE TABLE'`
+        const tables = await this.query(tableSql, {
+            connectionId: params.connectionId,
+        })
+        console.log('tables.length', tables.length)
+        
+        // const tables = await this.query(tableSql, {
+        //     connectionId: params.connectionId,
+        // })
+        const taskId = uid(32)
+        g_taskMap[taskId] = {
+            total: tables.length,
+            current: 0,
+            status: 'ing',
+            id: taskId,
+        }
+
+        this._backup({
+            connectionId: params.connectionId,
+            taskId,
+            dbName,
+            tables,
+        })
+
+        return {
+            taskId,
+        }
+    }
+
+    async _backup({ taskId, connectionId, dbName, tables }) {
+        const task = g_taskMap[taskId]
+        const tmpPath = nodePath.join(appFolder, 'tmp.sql')
+        fs.writeFileSync(tmpPath, '', 'utf-8')
+
+        for (let idx = 0; idx < tables.length; idx++) {
+            if (task) {
+                task.current = idx
+            }
+            const table = tables[idx]
+            const tableName = table['TABLE_NAME']
+            console.log('tableName', tableName)
+            const pageSize = 1000
+            const sql = `SELECT COUNT(*) FROM \`${dbName}\`.\`${tableName}\``
+    
+            const countResult = await this.query(sql, {
+                connectionId,
+            })
+            const total = countResult[0]['COUNT(*)']
+            await this._exportData({
+                connectionId,
+                dbName,
+                tableName,
+                total,
+                taskId: null,
+                pageSize,
+                type: 'dataAndStruct',
+                handleStorage: allSql => {
+                    fs.appendFileSync(tmpPath, allSql, 'utf-8')
+                },
+                onProgress({ offset }) {
+                    task.description = `正在导出 ${tableName}: ${offset}/${total}`
+                }
+            })
+            
+        }
+        if (task) {
+            task.current = tables.length - 1
+            // task.current = total - 1
+            task.status = 'success'
+            task.hasFile = true
+            task.path = tmpPath
+        }
+        // for (let table of tables) {
+        // }
+        console.log('backup/finish', )
+    }
+
+    async _backTable({ tableName }) {}
 }

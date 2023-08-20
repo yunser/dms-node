@@ -19,6 +19,7 @@ import { KafkaService } from './kafka.service'
 import { DockerService } from './docker.service'
 import { ProxyService } from './proxy.service'
 import { OpenAiService } from './openai.service'
+import { LowCodeService } from './lowCode.service'
 const send = require('koa-send')
 import { LoggerService } from './logger.service'
 
@@ -41,6 +42,7 @@ const dockerService = new DockerService()
 const proxyService = new ProxyService()
 const openaiService = new OpenAiService()
 const loggerService = new LoggerService()
+const lowCodeService = new LowCodeService()
 
 // const staticPath = '../static'
 const staticPath = '../view/dist'
@@ -327,6 +329,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
 
     router.post(`/mysql/execSql`, async (ctx) => {
         ctx.body = await mySqlService.execSql(ctx.request.body)
+    })
+    router.post(`/mysql/backup`, async (ctx) => {
+        ctx.body = await mySqlService.backup(ctx.request.body)
     })
 
     router.post(`/mysql/tableDetail`, async (ctx) => {
@@ -1115,6 +1120,13 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/docker/volume/remove`, async (ctx) => {
         ctx.body = await dockerService.volumeRemove(ctx.request.body)
     })
+    router.post(`/lowCode/list`, async (ctx) => {
+        ctx.body = await lowCodeService.list(ctx.request.body)
+    })
+    router.post(`/lowCode/detail`, async (ctx) => {
+        ctx.body = await lowCodeService.detail(ctx.request.body)
+    })
+    
     
 
     app.use(async (ctx, next) => {
