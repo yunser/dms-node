@@ -1124,6 +1124,15 @@ export class FileService {
         }
     }
 
+    async modeUpdate(body) {
+        const { path, sourceType = 'local', mode } = body
+        if (sourceType == 'local') {
+            fs.chmodSync(path, mode)
+            return {}
+        }
+        throw new Error(`not support sourceType ${sourceType}`)
+    }
+
     async write(body) {
         const { path, sourceType = 'local', content = '' } = body
         // const path = ctx.request.query

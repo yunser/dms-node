@@ -565,6 +565,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/file/write`, async (ctx) => {
         ctx.body = await fileService.write(ctx.request.body)
     })
+    router.post(`/file/modeUpdate`, async (ctx) => {
+        ctx.body = await fileService.modeUpdate(ctx.request.body)
+    })
     router.post(`/file/create`, async (ctx) => {
         ctx.body = await fileService.create(ctx.request.body)
     })
