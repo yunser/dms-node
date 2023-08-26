@@ -296,7 +296,7 @@ function handleFolder(folderPath, r = false) {
                 type: stat.isFile() ? 'FILE' : 'DIRECTORY',
                 name: fileName,
                 path: filePath,
-                updateTime: stat.mtime,
+                modifyTime: stat.mtime,
                 createTime: stat.birthtime,
                 accessTime: stat.atime,
                 size: stat.size,
@@ -419,6 +419,7 @@ export class FileService {
                 stat: {
                     createTime: new Date(stat.birthtime),
                     modifyTime: new Date(stat.mtime),
+                    accessTime: new Date(stat.atime),
                     // 文件状态改变时间，指文件的i结点被修改的时间
                     // changeTime: new Date(stat.ctime),
                     mode: stat.mode,
@@ -445,6 +446,7 @@ export class FileService {
             return {
                 stat: {
                     modifyTime: new Date(stat.modifyTime),
+                    accessTime: new Date(stat.accessTime),
                     mode: stat.mode,
                     _raw: stat,
                 },
@@ -757,7 +759,7 @@ export class FileService {
                     name: fileName,
                     path: '/' + item.name,
                     size: item.size,
-                    updateTime: item.lastModified,
+                    modifyTime: item.lastModified,
                 })
             }
             // return {
@@ -1010,6 +1012,7 @@ export class FileService {
             }
         }
         else {
+            // SFTP
             const g_sftp = await this.getSftpClient(body)
             const _path = path || '/root'
             
@@ -1028,7 +1031,8 @@ export class FileService {
                     type: item.type == 'd' ? 'DIRECTORY' : 'FILE',
                     name: item.name,
                     path: ((_path == '/') ? '/' : (_path + '/')) + item.name, // TODO
-                    updateTime: new Date(item.modifyTime),
+                    modifyTime: item.modifyTime ? new Date(item.modifyTime) : null,
+                    accessTime: item.accessTime ? new Date(item.accessTime) : null,
                     size: item.size,
                     _item: item,
                 }
@@ -1128,6 +1132,12 @@ export class FileService {
         const { path, sourceType = 'local', mode } = body
         if (sourceType == 'local') {
             fs.chmodSync(path, mode)
+            return {}
+        }
+        else {
+            // SFTP
+            const g_sftp = await this.getSftpClient(body)
+            await g_sftp.chmod(path, mode)
             return {}
         }
         throw new Error(`not support sourceType ${sourceType}`)
@@ -1333,7 +1343,7 @@ export class FileService {
     }
 
     async delete(body) {
-        const { path, type, sourceType } = body
+        const { path, paths = [], type, sourceType } = body
         // const path = ctx.request.query
         // const content = fs.readFileSync(path, 'utf-8')
         // return {
@@ -1372,12 +1382,21 @@ export class FileService {
             // const localPath = nodePath.join(path, name) // TODO
             // const tmpPath = nodePath.join(appFolder, 'tmp.file')
             // console.log('tmpPath', tmpPath)
-            const ossPath = path.replace(/^\//, '')
-                + (type == 'FILE' ? '' : '/')
-            console.log('ossPath', ossPath)
-            // console.log('localPath', localPath)
-            // fs.writeFileSync(tmpPath, '', 'utf-8')
-            await g_publicStores[sourceType].delete(ossPath)
+            if (paths.length) {
+                const deletePaths = paths.map(item => {
+                    return item.path.replace(/^\//, '') + (item.type == 'FILE' ? '' : '/')
+                })
+                const res = await g_publicStores[sourceType].deleteMulti(deletePaths, {
+                    quiet: true
+                })
+            }
+            else {
+                const ossPath = path.replace(/^\//, '')
+                    + (type == 'FILE' ? '' : '/')
+                // console.log('localPath', localPath)
+                // fs.writeFileSync(tmpPath, '', 'utf-8')
+                await g_publicStores[sourceType].delete(ossPath)
+            }
             return {}
             
             // const content = fs.readFileSync(tmpPath, 'utf-8')
@@ -1386,34 +1405,67 @@ export class FileService {
             // }
         }
         else if (sourceType == 'local') {
-            if (type == 'FILE') {
-                // if (os.type() == 'Windows_NT') {
-                //     //windows
-                // } else if (os.type() == 'Darwin') {
-                //     //mac
-                // } else if (os.type() == 'Linux') {
-                // if (os.type() == 'Darwin') {
-
-                // }
-                // await trash([path])
-                fs.unlinkSync(path)
+            if (paths.length) {
+                for (let item of paths) {
+                    const { path } = item
+                    const stat = fs.statSync(path)
+                    if (stat.isFile()) {
+                        console.log('删除文件', path)
+                        fs.unlinkSync(path)
+                    }
+                    else if (stat.isDirectory()) {
+                        console.log('删除文件夹', path)
+                        rmDir(path)
+                    }
+                }
             }
             else {
-                rmDir(path)
-                // await deleteAsync(path)
-                // fs.rmdirSync(path)
+                if (type == 'FILE') {
+                    // if (os.type() == 'Windows_NT') {
+                    //     //windows
+                    // } else if (os.type() == 'Darwin') {
+                    //     //mac
+                    // } else if (os.type() == 'Linux') {
+                    // if (os.type() == 'Darwin') {
+    
+                    // }
+                    // await trash([path])
+                    fs.unlinkSync(path)
+                }
+                else {
+                    rmDir(path)
+                    // await deleteAsync(path)
+                    // fs.rmdirSync(path)
+                }
             }
             return {}
         }
         else {
+            // SFTP
             const g_sftp = await this.getSftpClient(body)
-            if (type == 'FILE') {
-                await g_sftp.delete(path)
+            if (paths.length) {
+                let idx = 0
+                for (let item of paths) {
+                    const { path } = item
+                    console.log(`file delete ${idx++}/${paths.length}`, )
+                    const stat = await g_sftp.stat(path)
+                    if (stat.isFile) {
+                        await g_sftp.delete(path)
+                    }
+                    else {
+                        await g_sftp.rmdir(path, true)
+                    }
+                }
             }
             else {
-                await g_sftp.rmdir(path, true)
+                if (type == 'FILE') {
+                    await g_sftp.delete(path)
+                }
+                else {
+                    await g_sftp.rmdir(path, true)
+                }
             }
-            // return {}
+            return {}
         }
     }
 
