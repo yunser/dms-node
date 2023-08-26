@@ -607,6 +607,7 @@ export class SshService {
         // console.log('top', new Date().getTime() - startTime.getTime())
         const version = await sshExec(sshClient, 'cat /proc/version')
         const lsb = await sshExec(sshClient, 'lsb_release -a')
+        const centos = await sshExec(sshClient, 'cat /etc/centos-release')
         const stat1 = parseStat(await sshExec(sshClient, 'cat /proc/stat'))
         await sleep(50)
         const stat2 = parseStat(await sshExec(sshClient, 'cat /proc/stat'))
@@ -626,6 +627,7 @@ export class SshService {
             top,
             version,
             lsb,
+            centos,
         }
     }
 
