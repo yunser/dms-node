@@ -905,6 +905,15 @@ export class GitService {
         }
     }
 
+    async blame(body) {
+        const { projectPath, filePath, end = 8 } = body
+        const git = await this.getClient(projectPath)
+        const res = await git.raw(['blame', `-L 1,${end}`, filePath])
+        return {
+            content: res,
+        }
+    }
+
     async tagCreate(body) {
         const { projectPath, name, commit, pushRemote } = body
         const git = await this.getClient(projectPath)
