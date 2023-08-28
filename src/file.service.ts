@@ -1914,13 +1914,25 @@ export class FileService {
 
 
     async copy(body) {
-        const { sourceType, fromPath, toPath, copyType } = body
+        const { sourceType, items = [], fromPath, toPath, copyType } = body
         
         if (sourceType == 'local') {
-            await _copy(fromPath, toPath)
-            
-            if (copyType == 'cut') {
-                fs.unlinkSync(fromPath)
+            if (items.length) {
+                for (let item of items) {
+                    const {fromPath, toPath} = item
+                    await _copy(fromPath, toPath)
+                
+                    if (copyType == 'cut') {
+                        fs.unlinkSync(fromPath)
+                    }
+                }
+            }
+            else {
+                await _copy(fromPath, toPath)
+                
+                if (copyType == 'cut') {
+                    fs.unlinkSync(fromPath)
+                }
             }
         }
         else if (sourceType.includes('webdav')) {
@@ -1953,21 +1965,47 @@ export class FileService {
         else if (sourceType.includes('oss')) {
             // const tmpPath = nodePath.join(appFolder, 'tmp.file')
             // console.log('tmpPath', tmpPath)
-            const ossFromPath = fromPath.replace(/^\//, '')
-            const ossToPath = toPath.replace(/^\//, '')
-                // + (type == 'FILE' ? '' : '/')
-            await g_publicStores[sourceType].copy(ossToPath, ossFromPath)
-            if (copyType == 'cut') {
-                await g_publicStores[sourceType].delete(ossFromPath)
+            if (items.length) {
+                for (let item of items) {
+                    const {fromPath, toPath} = item
+                    const ossFromPath = fromPath.replace(/^\//, '')
+                    const ossToPath = toPath.replace(/^\//, '')
+                        // + (type == 'FILE' ? '' : '/')
+                    await g_publicStores[sourceType].copy(ossToPath, ossFromPath)
+                    if (copyType == 'cut') {
+                        await g_publicStores[sourceType].delete(ossFromPath)
+                    }
+                }
+            }
+            else {
+                const ossFromPath = fromPath.replace(/^\//, '')
+                const ossToPath = toPath.replace(/^\//, '')
+                    // + (type == 'FILE' ? '' : '/')
+                await g_publicStores[sourceType].copy(ossToPath, ossFromPath)
+                if (copyType == 'cut') {
+                    await g_publicStores[sourceType].delete(ossFromPath)
+                }
             }
 
             return {}
         }
         else {
+            // SFTP
             const g_sftp = await this.getSftpClient(body)
-            await g_sftp.rcopy(fromPath, toPath)
-            if (copyType == 'cut') {
-                await g_sftp.delete(fromPath)
+            if (items.length) {
+                for (let item of items) {
+                    const {fromPath, toPath} = item
+                    await g_sftp.rcopy(fromPath, toPath)
+                    if (copyType == 'cut') {
+                        await g_sftp.delete(fromPath)
+                    }
+                }
+            }
+            else {
+                await g_sftp.rcopy(fromPath, toPath)
+                if (copyType == 'cut') {
+                    await g_sftp.delete(fromPath)
+                }
             }
         }
 
