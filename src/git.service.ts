@@ -582,9 +582,17 @@ export class GitService {
 
     async getInfo(body) {
         const { projectPath } = body
+        let readme = null
+        if (projectPath) {
+            const gitReadmePath = path.join(projectPath, '.git-README.md')
+            if (fs.existsSync(gitReadmePath)) {
+                readme = fs.readFileSync(gitReadmePath, 'utf-8')
+            }
+        }
         return {
             pathSeparator: path.sep,
             pathExists: fs.existsSync(projectPath),
+            readme,
         }
     }
     
