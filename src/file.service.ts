@@ -151,7 +151,10 @@ let appFolder = path.resolve(yunserFolder, 'dms-cli') // TODO package，npm inst
 //     fs.mkdirSync(appFolder)
 // }
 
-
+function getTempPath() {
+    const fileName = `tmp-${uid(16)}.file`
+    return nodePath.join(appFolder, fileName)
+}
 
 let collectionDbFilePath = path.resolve(appFolder, 'file.collection.json')
 if (!fs.existsSync(collectionDbFilePath)) {
@@ -1582,7 +1585,7 @@ export class FileService {
             // return fs.readFileSync(path)
         }
         else if (sourceType.includes('oss')) {
-            const tmpPath = nodePath.join(appFolder, 'tmp.file')
+            const tmpPath = getTempPath()
             // console.log('tmpPath', tmpPath)
             const ossPath = path.replace(/^\//, '')
             await g_publicStores[sourceType].get(ossPath, tmpPath)
@@ -1590,7 +1593,7 @@ export class FileService {
         }
         else {
             const g_sftp = await this.getSftpClient(body)
-            const tmpPath = nodePath.join(appFolder, 'tmp.file')
+            const tmpPath = getTempPath()
             await g_sftp.fastGet(path, tmpPath)
             return fs.readFileSync(tmpPath)
         }
