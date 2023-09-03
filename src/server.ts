@@ -1108,6 +1108,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/docker/services`, async (ctx) => {
         ctx.body = await dockerService.services(ctx.request.body)
     })
+    router.post(`/docker/plugins`, async (ctx) => {
+        ctx.body = await dockerService.plugins(ctx.request.body)
+    })
     router.post(`/docker/service/remove`, async (ctx) => {
         ctx.body = await dockerService.serviceRemove(ctx.request.body)
     })

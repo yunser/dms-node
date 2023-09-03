@@ -131,6 +131,10 @@ export class DockerService {
         return await this._getList(body, '/services')
     }
 
+    async plugins(body) {
+        return await this._getList(body, '/plugins')
+    }
+
     async networks(body) {
         return await this._getList(body, '/networks')
     }
