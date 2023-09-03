@@ -283,9 +283,6 @@ function handleFolder(folderPath, r = false) {
     const fileNames = fs.readdirSync(folderPath)
     const results = []
     for (let fileName of fileNames) {
-        if (fileName.startsWith('.')) {
-            continue
-        }
         const filePath = path.resolve(folderPath, fileName)
         try {
             // const stat = fs.statSync(filePath)
