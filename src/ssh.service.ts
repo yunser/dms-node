@@ -366,7 +366,7 @@ function createSocket(ws: WebSocket) {
                             .on("data", function (d) {
                                 let data = utf8.decode(d.toString("binary"));
                                 // ws.send(data)
-                                console.log('ws/send', data)
+                                // console.log('ws/send', data)
                                 if (g_isRecord) {
                                     g_isRecord = false
                                     const path = data.split('\r\n')[1]
@@ -434,7 +434,7 @@ function createSocket(ws: WebSocket) {
     webSocketId2SocketMap[webSocketId] = ws
 
     ws.on("message", async (data) => {
-        console.log("websocket/on message", data.toString());
+        // console.log("websocket/on message", data.toString());
         const msgContent = data.toString()
         if (msgContent == 'ping') {
             ws.send('pong')
