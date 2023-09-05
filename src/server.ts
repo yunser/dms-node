@@ -17,6 +17,7 @@ import { MongoService } from './mongo.service'
 import { MqttService } from './mqtt.service'
 import { KafkaService } from './kafka.service'
 import { DockerService } from './docker.service'
+import { EsService } from './es.service'
 import { ProxyService } from './proxy.service'
 import { OpenAiService } from './openai.service'
 import { LowCodeService } from './lowCode.service'
@@ -39,6 +40,7 @@ const mongoService = new MongoService()
 const mqttService = new MqttService()
 const kafkaService = new KafkaService()
 const dockerService = new DockerService()
+const esService = new EsService()
 const proxyService = new ProxyService()
 const openaiService = new OpenAiService()
 const loggerService = new LoggerService()
@@ -1080,6 +1082,12 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/kafka/group/remove`, async (ctx) => {
         ctx.body = await kafkaService.removeGroup(ctx.request.body)
+    })
+    router.post(`/es`, async (ctx) => {
+        ctx.body = await esService.index(ctx.request.body)
+    })
+    router.post(`/es/connection/list`, async (ctx) => {
+        ctx.body = await esService.connectionList(ctx.request.body)
     })
     router.post(`/docker/run`, async (ctx) => {
         ctx.body = await dockerService.run(ctx.request.body)
