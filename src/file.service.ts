@@ -1202,7 +1202,7 @@ export class FileService {
     }
 
     async create(body) {
-        const { path, name, type, sourceType } = body
+        const { path, name, link, type, sourceType } = body
         // {
         //     "path": "/s3-folder",
         //     "name": "kkk",
@@ -1300,7 +1300,11 @@ export class FileService {
                 }
                 fs.writeFileSync(filePath, '', 'utf-8')
             }
+            else if (type == 'LINK') {
+                fs.symlinkSync(link, localPath)
+            }
             else {
+                // else if (type == 'FOLDER') {
                 if (name.startsWith('/')) {
                     mkdirp(name)
                 }
