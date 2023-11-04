@@ -33,7 +33,7 @@ function mqttConnect(url, params): Promise<void> {
         const client  = mqtt.connect(url, {
             ...params,
             reconnectPeriod: 0,
-            connectTimeout: 1000,
+            connectTimeout: 10 * 1000,
         })
         client.on('connect', function () {
             console.log('mqttConnect/onConnect')
@@ -46,11 +46,20 @@ function mqttConnect(url, params): Promise<void> {
         //     sendMqttMsg({ topic, message: message.toString() })
         //   //   client.end()
         // })
+        
         client.on('error', function (err) {
             // message is Buffer
             console.log('mqttConnect/on-error', err)
           //   client.end()
-          reject(err)
+            reject(err)
+        })
+        client.on('close', function (err) {
+            console.log('mqttConnect/on-close', err)
+            // 实测服务器连接不上会执行到这里，但不会触发 error 事件
+            reject(err)
+        })
+        client.on('disconnect', function (err) {
+            console.log('mqttConnect/on-disconnect')
         })
     })
 }
@@ -71,6 +80,38 @@ export class MqttService {
         const client = await this._getClient(body)
         client.publish(topic, message, {
             qos: 1,
+        }, (error, packet) => {
+            if (error) {
+                console.error('error', error)
+                return
+            }
+            console.log('publish/ok', )
+        })
+        return {}
+    }
+
+    async subscribe(body) {
+        const { topic, message } = body
+        const client = await this._getClient(body)
+        client.subscribe(topic, function (err) {
+            if (err) {
+                console.log('mqtt/subscribe/error', err)
+                return
+            }
+            console.log('subscribe ok')
+        })
+        return {}
+    }
+
+    async unsubscribe(body) {
+        const { topic, message } = body
+        const client = await this._getClient(body)
+        client.unsubscribe(topic, function (err) {
+            if (err) {
+                console.log('mqtt/unsubscribe/error', err)
+                return
+            }
+            console.log('unsubscribe ok')
         })
         return {}
     }
@@ -116,18 +157,13 @@ export class MqttService {
         // }
         // console.log('params', params)
         console.log('mqtt/connect')
-        const client = mqtt.connect(url, params)
+        const client = mqtt.connect(url, {
+            ...params,
+            reconnectPeriod: 0,
+            connectTimeout: 10 * 1000,
+        })
         client.on('connect', function () {
             console.log('mqtt/onConnect')
-            client.subscribe('msg/#', function (err) {
-                if (err) {
-                    console.log('mqtt/subscribe/error', err)
-                    return
-                }
-                console.log('subscribe ok')
-                client.publish('msg/hello', 'Hello world! @DMS')
-                console.log('publish ok')
-            })
         })
           
         client.on('message', function (topic, message) {
