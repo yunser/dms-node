@@ -377,6 +377,9 @@ export class MySqlService {
 
     async _sqliteConnect(params) {
         const { databasePath, password, port, user, test } = params
+        if (!fs.existsSync(databasePath)) {
+            throw new Error('database path not exists')
+        }
         const hdb = new sqlite3.Database(databasePath)
         await dbQueryList(hdb, 'SELECT 1 + 1')
         return hdb
@@ -526,13 +529,20 @@ export class MySqlService {
         }
     }
 
+    async health(body) {
+        const { connectionId } = body
+        const connections = (await this.connectionList()).list
+        const connection = connections.find(item => item.id == connectionId)
+        return await this.connect(connection)
+    }
+
     async connect(body) {
         const { test, type = 'mysql', httpProxyUrl, httpProxyToken, ...options } = body
         const httpAgent = !!httpProxyUrl
         // console.log('options', options)
         const agentUrl = httpProxyUrl
         let connection
-        let connectionId = uid(32)
+        let connectionId = `db_${uid(32 - 3)}`
         if (type == 'postgresql') {
             connection = await this._postgresConnect(options)
         }
@@ -797,6 +807,18 @@ export class MySqlService {
                 return {
                     ...item,
                     $_name: item.Name,
+                }
+            })
+        }
+        else if (conn.type == 'oracle') {
+            const sql = `SELECT DISTINCT OWNER FROM all_tables`
+            const result = await this.query(sql, {
+                connectionId: params.connectionId,
+            })
+            return result.map(item => {
+                const { OWNER } = item
+                return {
+                    $_name: OWNER,
                 }
             })
         }
@@ -1109,6 +1131,20 @@ export class MySqlService {
                 }
             })
         }
+        else if (conn.type == 'oracle') {
+            const sql = `SELECT TABLE_NAME FROM all_tables WHERE OWNER = '${dbName}'`
+            const result = await this.query(sql, {
+                connectionId: params.connectionId,
+            })
+            return result.map(item => {
+                const { TABLE_NAME } = item
+                return {
+                    $table_schema: dbName,
+                    $_table_name: TABLE_NAME,
+                    $__schemaName: dbName,
+                }
+            })
+        }
 
         // const { dbName } = params
         let sql = `SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA = '${dbName}'`
@@ -1147,7 +1183,7 @@ export class MySqlService {
         const { page = 1, pageSize = 10, keyword } = body
         let list = g_hostories
         if (keyword) {
-            // list = g_sqls.filter(item => item.name.toLowerCase().includes(keyword.toLowerCase()))
+            list = list.filter(item => item.sql.toLowerCase().includes(keyword.toLowerCase()))
         }
         return {
             total: list.length,
@@ -1164,7 +1200,7 @@ export class MySqlService {
         const { page = 1, pageSize = 10, keyword } = body
         let list = g_sqls
         if (keyword) {
-            list = g_sqls.filter(item => item.name.toLowerCase().includes(keyword.toLowerCase()))
+            list = g_sqls.filter(item => item.name.toLowerCase().includes(keyword.toLowerCase()) || item.sql.toLowerCase().includes(keyword.toLowerCase()))
         }
         return {
             total: list.length,
@@ -1177,6 +1213,16 @@ export class MySqlService {
             ...body,
             id: uid(32),
         })
+        saveSqlData()
+    }
+
+    async sqlUpdate(body) {
+        const { id, data } = body
+        const idx = g_sqls.findIndex(_item => _item.id == id)
+        g_sqls[idx] = {
+            ...g_sqls[idx],
+            ...data,
+        }
         saveSqlData()
     }
 
@@ -1193,16 +1239,18 @@ export class MySqlService {
             throw new ParamException('Need connectionId')
         }
         const { dbName, tableName } = params
-        // let sql = `describe ${dbName}.${tableName};`
-        // let sql = 
         const conn = g_connections[params.connectionId]
         
 
         
-        let tableSql
         let table
-        if (conn.type == 'sqlite') {
-            tableSql = `SELECT * from sqlite_master
+        if (conn.type == 'oracle') {
+            table = {
+                TABLE_NAME: tableName,
+            }
+        }
+        else if (conn.type == 'sqlite') {
+            const tableSql = `SELECT * from sqlite_master
 WHERE type = 'table'
 AND name='${tableName}'
 `
@@ -1216,7 +1264,7 @@ AND name='${tableName}'
             }
         }
         else {
-            tableSql = `SELECT * FROM information_schema.tables 
+            const tableSql = `SELECT * FROM information_schema.tables 
 WHERE TABLE_SCHEMA = '${dbName}'
 AND TABLE_NAME = '${tableName}'`
             const tables = await this.query(tableSql, {
@@ -1330,6 +1378,39 @@ WHERE TABLE_SCHEMA = '${dbName}'
     FROM information_schema.TRIGGERS
     WHERE EVENT_OBJECT_SCHEMA = '${dbName}'
         and EVENT_OBJECT_TABLE = '${tableName}'`, {
+                    connectionId: params.connectionId,
+                }),
+            }
+        }
+        else if (conn.type == 'oracle') {
+            const columnSql = `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, NULLABLE, COLUMN_ID, DEFAULT_LENGTH, DATA_DEFAULT
+FROM user_tab_columns
+WHERE TABLE_NAME = '${tableName}'
+ORDER BY COLUMN_ID ASC`
+            const indexSql = `select OWNER, INDEX_NAME, INDEX_TYPE, TABLE_OWNER, TABLE_NAME
+from all_indexes
+where TABLE_OWNER = '${dbName}' and TABLE_NAME = '${tableName}'
+`
+            let _columns = await this.query(columnSql, {
+                connectionId: params.connectionId,
+            })
+            _columns = _columns.map(item => {
+                return {
+                    COLUMN_NAME: item.COLUMN_NAME,
+                    COLUMN_TYPE: item.DATA_TYPE, // DATA_LENGTH
+                    DATA_LENGTH: item.DATA_LENGTH,
+                    COLUMN_COMMENT: '',
+                    COLUMN_DEFAULT: item.DATA_DEFAULT,
+                    IS_NULLABLE: item.NULLABLE == 'Y' ? 'YES' : '', // TODO N
+                    COLUMN_KEY: '',
+                    positon: item.COLUMN_ID,
+                    'x-raw': item,
+                }
+            })
+            result = {
+                ...result,
+                columns: _columns,
+                indexes: await this.query(indexSql, {
                     connectionId: params.connectionId,
                 }),
             }

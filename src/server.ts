@@ -15,6 +15,8 @@ import { SocketService } from './socket.service'
 import { HttpService } from './http.service'
 import { MongoService } from './mongo.service'
 import { MqttService } from './mqtt.service'
+import { ZookeeperService } from './zookeeper.service'
+import { InfluxdbService } from './influxdb.service'
 import { KafkaService } from './kafka.service'
 import { DockerService } from './docker.service'
 import { EsService } from './es.service'
@@ -38,6 +40,8 @@ const socketService = new SocketService()
 const httpService = new HttpService()
 const mongoService = new MongoService()
 const mqttService = new MqttService()
+const zookeeperService = new ZookeeperService()
+const influxdbService = new InfluxdbService()
 const kafkaService = new KafkaService()
 const dockerService = new DockerService()
 const esService = new EsService()
@@ -230,6 +234,10 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     //     ctx.body = await redisService.deleteKeys(ctx.request.body)
     // })
 
+    router.post(`/redis/health`, async (ctx) => {
+        ctx.body = await redisService.health(ctx.request.body)
+    })
+
     router.post(`/redis/connect`, async (ctx) => {
         ctx.body = await redisService.connect(ctx.request.body)
     })
@@ -252,6 +260,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
 
     router.post(`/redis/key/create`, async (ctx) => {
         ctx.body = await redisService.keyCreate(ctx.request.body)
+    })
+    router.post(`/redis/key/update`, async (ctx) => {
+        ctx.body = await redisService.keyUpdate(ctx.request.body)
     })
 
     router.post(`/redis/key/remove`, async (ctx) => {
@@ -286,6 +297,10 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
 
     router.get(`/mysql`, async (ctx) => {
         ctx.body = await mySqlService.index()
+    })
+
+    router.post(`/mysql/health`, async (ctx) => {
+        ctx.body = await mySqlService.health(ctx.request.body)
     })
 
     router.post(`/mysql/connect`, async (ctx) => {
@@ -355,11 +370,12 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/mysql/sql/list`, async (ctx) => {
         ctx.body = await mySqlService.sqlList(ctx.request.body)
     })
-
     router.post(`/mysql/sql/create`, async (ctx) => {
         ctx.body = await mySqlService.sqlCreate(ctx.request.body)
     })
-
+    router.post(`/mysql/sql/update`, async (ctx) => {
+        ctx.body = await mySqlService.sqlUpdate(ctx.request.body)
+    })
     router.post(`/mysql/sql/remove`, async (ctx) => {
         ctx.body = await mySqlService.sqlRemove(ctx.request.body)
     })
@@ -426,6 +442,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/git/fileDiscard`, async (ctx) => {
         ctx.body = await gitService.fileDiscard(ctx.request.body)
+    })
+    router.post(`/git/fileConflictResolve`, async (ctx) => {
+        ctx.body = await gitService.fileConflictResolve(ctx.request.body)
     })
     router.post(`/git/commit/list`, async (ctx) => {
         ctx.body = await gitService.commitList(ctx.request.body)
@@ -532,6 +551,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/git/merge`, async (ctx) => {
         ctx.body = await gitService.merge(ctx.request.body)
     })
+    router.post(`/git/mergeAbort`, async (ctx) => {
+        ctx.body = await gitService.mergeAbort(ctx.request.body)
+    })
     router.post(`/git/command`, async (ctx) => {
         ctx.body = await gitService.command(ctx.request.body)
     })
@@ -608,6 +630,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/file/collection/create`, async (ctx) => {
         ctx.body = await fileService.collectionCreate(ctx.request.body)
     })
+    router.post(`/file/collection/remove`, async (ctx) => {
+        ctx.body = await fileService.collectionRemove(ctx.request.body)
+    })
     router.post(`/file/openInFinder`, async (ctx) => {
         ctx.body = await fileService.openInFinder(ctx.request.body)
     })
@@ -616,6 +641,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/file/openInVsCode`, async (ctx) => {
         ctx.body = await fileService.openInVsCode(ctx.request.body)
+    })
+    router.post(`/file/openInIdea`, async (ctx) => {
+        ctx.body = await fileService.openInIdea(ctx.request.body)
     })
     router.post(`/openInTerminal`, async (ctx) => {
         ctx.body = await fileService.openInTerminal(ctx.request.body)
@@ -787,11 +815,20 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/logger/history`, async (ctx) => {
         ctx.body = await loggerService.historyList(ctx.request.body)
     })
+    router.post(`/logger/agent`, async (ctx) => {
+        ctx.body = await fileService.loggerAgent(ctx.request.body)
+    })
     router.post(`/logger/history/push`, async (ctx) => {
         ctx.body = await loggerService.historyPush(ctx.request.body)
     })
+    router.post(`/ping/pingCheck`, async (ctx) => {
+        ctx.body = await sshService.pingCheck(ctx.request.body)
+    })
     router.get(`/ssh`, async (ctx) => {
         ctx.body = await sshService.home(ctx.request.body)
+    })
+    router.post(`/ssh/diskCheck`, async (ctx) => {
+        ctx.body = await sshService.diskCheck(ctx.request.body)
     })
     router.post(`/ssh/connect`, async (ctx) => {
         ctx.body = await sshService.connect(ctx.request.body)
@@ -1037,8 +1074,11 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/mqtt/publish`, async (ctx) => {
         ctx.body = await mqttService.publish(ctx.request.body)
     })
-    router.post(`/mqtt/publish`, async (ctx) => {
-        ctx.body = await mqttService.publish(ctx.request.body)
+    router.post(`/mqtt/subscribe`, async (ctx) => {
+        ctx.body = await mqttService.subscribe(ctx.request.body)
+    })
+    router.post(`/mqtt/unsubscribe`, async (ctx) => {
+        ctx.body = await mqttService.unsubscribe(ctx.request.body)
     })
     router.post(`/mqtt/connect`, async (ctx) => {
         ctx.body = await mqttService.connect(ctx.request.body)
@@ -1056,8 +1096,79 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
         ctx.body = await mqttService.connectionDelete(ctx.request.body)
     })
 
+    router.post(`/zookeeper/connection/list`, async (ctx) => {
+        ctx.body = await zookeeperService.connectionList(ctx.request.body)
+    })
+    router.post(`/zookeeper/connection/update`, async (ctx) => {
+        ctx.body = await zookeeperService.connectionEdit(ctx.request.body)
+    })
+    router.post(`/zookeeper/connection/create`, async (ctx) => {
+        ctx.body = await zookeeperService.connectionCreate(ctx.request.body)
+    })
+    router.post(`/zookeeper/connection/delete`, async (ctx) => {
+        ctx.body = await zookeeperService.connectionDelete(ctx.request.body)
+    })
+    router.post(`/zookeeper/connect`, async (ctx) => {
+        ctx.body = await zookeeperService.connect(ctx.request.body)
+    })
+    router.post(`/zookeeper/tree`, async (ctx) => {
+        ctx.body = await zookeeperService.tree(ctx.request.body)
+    })
+    router.post(`/zookeeper/create`, async (ctx) => {
+        ctx.body = await zookeeperService.create(ctx.request.body)
+    })
+    router.post(`/zookeeper/remove`, async (ctx) => {
+        ctx.body = await zookeeperService.remove(ctx.request.body)
+    })
+    router.post(`/zookeeper/getData`, async (ctx) => {
+        ctx.body = await zookeeperService.getData(ctx.request.body)
+    })
+    router.post(`/zookeeper/setData`, async (ctx) => {
+        ctx.body = await zookeeperService.setData(ctx.request.body)
+    })
+
+    router.post(`/influxdb/connection/list`, async (ctx) => {
+        ctx.body = await influxdbService.connectionList(ctx.request.body)
+    })
+    router.post(`/influxdb/connection/update`, async (ctx) => {
+        ctx.body = await influxdbService.connectionEdit(ctx.request.body)
+    })
+    router.post(`/influxdb/connection/create`, async (ctx) => {
+        ctx.body = await influxdbService.connectionCreate(ctx.request.body)
+    })
+    router.post(`/influxdb/connection/delete`, async (ctx) => {
+        ctx.body = await influxdbService.connectionDelete(ctx.request.body)
+    })
+    router.post(`/influxdb/connect`, async (ctx) => {
+        ctx.body = await influxdbService.connect(ctx.request.body)
+    })
+    router.post(`/influxdb/databases`, async (ctx) => {
+        ctx.body = await influxdbService.databases(ctx.request.body)
+    })
+    router.post(`/influxdb/measurements`, async (ctx) => {
+        ctx.body = await influxdbService.measurements(ctx.request.body)
+    })
+    router.post(`/influxdb/query`, async (ctx) => {
+        ctx.body = await influxdbService.query(ctx.request.body)
+    })
+
     router.post(`/kafka/`, async (ctx) => {
         ctx.body = await kafkaService.index(ctx.request.body)
+    })
+    router.post(`/kafka/connection/list`, async (ctx) => {
+        ctx.body = await kafkaService.connectionList(ctx.request.body)
+    })
+    router.post(`/kafka/connection/create`, async (ctx) => {
+        ctx.body = await kafkaService.connectionCreate(ctx.request.body)
+    })
+    router.post(`/kafka/connection/update`, async (ctx) => {
+        ctx.body = await kafkaService.connectionUpdate(ctx.request.body)
+    })
+    router.post(`/kafka/connection/delete`, async (ctx) => {
+        ctx.body = await kafkaService.connectionDelete(ctx.request.body)
+    })
+    router.post(`/kafka/connect`, async (ctx) => {
+        ctx.body = await kafkaService.connect(ctx.request.body)
     })
     router.post(`/kafka/init`, async (ctx) => {
         ctx.body = await kafkaService.init(ctx.request.body)
@@ -1067,6 +1178,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/kafka/groups`, async (ctx) => {
         ctx.body = await kafkaService.groups(ctx.request.body)
+    })
+    router.post(`/kafka/topic/detail`, async (ctx) => {
+        ctx.body = await kafkaService.topicDetail(ctx.request.body)
     })
     router.post(`/kafka/groupDetail`, async (ctx) => {
         ctx.body = await kafkaService.groupDetail(ctx.request.body)
@@ -1088,6 +1202,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     })
     router.post(`/es/connection/list`, async (ctx) => {
         ctx.body = await esService.connectionList(ctx.request.body)
+    })
+    router.post(`/docker/version`, async (ctx) => {
+        ctx.body = await dockerService.version(ctx.request.body)
     })
     router.post(`/docker/run`, async (ctx) => {
         ctx.body = await dockerService.run(ctx.request.body)
@@ -1119,6 +1236,9 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/docker/plugins`, async (ctx) => {
         ctx.body = await dockerService.plugins(ctx.request.body)
     })
+    router.post(`/docker/stats`, async (ctx) => {
+        ctx.body = await dockerService.stats(ctx.request.body)
+    })
     router.post(`/docker/service/remove`, async (ctx) => {
         ctx.body = await dockerService.serviceRemove(ctx.request.body)
     })
@@ -1137,6 +1257,10 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
     router.post(`/docker/volume/remove`, async (ctx) => {
         ctx.body = await dockerService.volumeRemove(ctx.request.body)
     })
+    router.post(`/docker/config/list`, async (ctx) => {
+        ctx.body = await dockerService.configs(ctx.request.body)
+    })
+
     router.post(`/lowCode/list`, async (ctx) => {
         ctx.body = await lowCodeService.list(ctx.request.body)
     })
@@ -1172,7 +1296,7 @@ export function createServer({ port, rootPath, }: CreateServerProps) {
             console.error(err)
             ctx.status = 500
             ctx.body = {
-                message: err.message || 'Unknown Error'
+                message: err?.message || 'Unknown Error'
             }
         }
     })
