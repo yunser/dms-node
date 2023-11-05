@@ -12,6 +12,19 @@ import * as utf8 from 'utf8'
 // import * as pty from 'node-pty'
 import moment = require("moment");
 import { closeWebSocketServer } from "./socket.service";
+const { exec } = require('child_process')
+
+function myExec(command): Promise<any> {
+    return new Promise((resolve, reject) => {
+        exec(command, ((stderr, stdout) => {
+            resolve({
+                stderr: stderr || null,
+                stdout: stdout || '',
+            })
+        }))
+    })
+}
+
 
 function getConnectParams(body) {
     const connectParams: any = {
@@ -550,6 +563,36 @@ export class SshService {
 
     async home(body) {
         return 'ssh home'
+    }
+
+    async pingCheck(body) {
+        const { ip } = body
+        const command = `ping ${ip} -c 1 -t 2`
+        const res = await myExec(command)
+        console.log('res', res)
+        // const dfResult = await this._exec({
+        //     id: connectionId,
+        //     command: 'df -h',
+        // })
+        return {
+            success: !res.stderr,
+            stdout: res.stdout,
+        }
+    }
+
+    async diskCheck(body) {
+        const { connectionId } = body
+        // const list = await this._getConnectionList()
+        // const item = list.find(item => item.id == connectionId)
+        // console.log('item', item)
+        // await this.connect(item)
+        const dfResult = await this._exec({
+            id: connectionId,
+            command: 'df -h',
+        })
+        return {
+            dfResult,
+        }
     }
 
     async connect(body) {
