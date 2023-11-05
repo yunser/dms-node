@@ -500,6 +500,12 @@ export class FileService {
         }
     }
 
+    async loggerAgent(body) {
+        const { url, requestData } = body
+        const res = await axios.post(url, requestData)
+        return res.data
+    }
+
     async loggerList(body) {
         const content = fs.readFileSync(loggerDbFilePath, 'utf-8') || '[]'
         const list = JSON.parse(content)
@@ -1315,6 +1321,7 @@ export class FileService {
             return {}
         }
         else {
+            // SFTP
             const g_sftp = await this.getSftpClient(body)
             if (type == 'FILE') {
                 const tmpPath = nodePath.join(appFolder, 'tmp.file')
@@ -1333,6 +1340,16 @@ export class FileService {
                     await g_sftp.mkdir(folder, true)
                 }
                 await g_sftp.put(tmpPath, filePath)
+            }
+            else if (type == 'LINK') {
+                let filePath = ''
+                if (name.startsWith('/')) {
+                    filePath = name
+                }
+                else {
+                    filePath = localPath
+                }
+                console.log('filePath', filePath)
             }
             else {
                 if (name.startsWith('/')) {
@@ -1677,8 +1694,14 @@ export class FileService {
         if (stat.isFile()) {
             exec(`code ${path}`)
         }
-        else {
-            // exec(`open ${path}`)
+        return {}
+    }
+
+    async openInIdea(body) {
+        const { path } = body
+        const stat = fs.statSync(path)
+        if (stat.isFile()) {
+            exec(`idea ${path}`)
         }
         return {}
     }
@@ -2126,19 +2149,29 @@ export class FileService {
         }
 
         
-        const { path } = body
+        const { path, type = 'FILE' } = body
         const content = fs.readFileSync(collectionDbFilePath, 'utf-8')
         const list = JSON.parse(content)
         list.unshift({
             id: uid(32),
             name: lastSplit(path, '/')[1],
             path,
+            type,
         })
         fs.writeFileSync(collectionDbFilePath, JSON.stringify(list, null, 4), 'utf8')
         return {}
         // return {
         //     list: 
         // }
+    }
+    
+    async collectionRemove(body) {
+        const { id } = body
+        const content = fs.readFileSync(collectionDbFilePath, 'utf-8')
+        const list = JSON.parse(content)
+        const newList = list.filter(item => item.id != id)
+        fs.writeFileSync(collectionDbFilePath, JSON.stringify(newList, null, 4))
+        return {}
     }
 
     async s3ConnectionList(body) {
