@@ -82,6 +82,15 @@ export async function loadDbJson(fileName: string, defaultValue = null) {
     return defaultValue
 }
 
+export async function writeDbJson(fileName: string, list) {
+    const path = nodePath.resolve(appFolder, fileName)
+    // console.log('path', path)
+    const content = fs.readFileSync(path, 'utf-8')
+    // console.log('content', content)
+    fs.writeFileSync(path, JSON.stringify(list, null, 4))
+    return {}
+}
+
 export async function pushDbJson(fileName: string, item) {
     const path = nodePath.resolve(appFolder, fileName)
     // console.log('path', path)
