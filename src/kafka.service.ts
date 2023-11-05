@@ -49,16 +49,88 @@ export class KafkaService {
         return 'kafka home'
     }
 
-    async init(_body) {
+    async connectionList(_body) {
         const list = await loadJson(redisConnectionFilePath, [])
-        const item = list[0]
-        const { host, port } = item
+        return {
+            list,
+        }
+    }
+
+    async connectionCreate(body) {
+        const content = fs.readFileSync(redisConnectionFilePath, 'utf-8')
+        const list = JSON.parse(content)
+        list.unshift({
+            ...body,
+            id: uid(32),
+        })
+        fs.writeFileSync(redisConnectionFilePath, JSON.stringify(list, null, 4), 'utf-8')
+        return {}
+    }
+
+    async connectionDelete(body) {
+        const { id } = body
+        const content = fs.readFileSync(redisConnectionFilePath, 'utf-8')
+        const list = JSON.parse(content)
+        const newList = list.filter(item => item.id != id)
+        fs.writeFileSync(redisConnectionFilePath, JSON.stringify(newList, null, 4), 'utf-8')
+        return {}
+    }
+
+    async connectionUpdate(body) {
+        const {
+            id,
+            data,
+        } = body
+        // name,
+        // host,
+        // port,
+        // password,
+        // username,
+        const content = fs.readFileSync(redisConnectionFilePath, 'utf-8')
+        const storeData = JSON.parse(content)
+        const idx = storeData.findIndex(_item => _item.id == id)
+        storeData[idx] = {
+            ...storeData[idx],
+            ...data,
+        }
+        fs.writeFileSync(redisConnectionFilePath, JSON.stringify(storeData, null, 4), 'utf-8')
+    }
+
+    async connect(body) {
+        const { host, port, test = false } = body
 
         const kafka = new Kafka({
-            clientId: 'dms-client-01',
+            clientId: 'client-dms-test',
             brokers: [
                 `${host}:${port}`,
             ],
+            connectionTimeout: 6000, // default 1000
+            retries: 1, // default 5
+            maxRetryTime: 8 * 1000, // default 30 s
+        })
+        const admin = kafka.admin()
+    
+        await admin.connect()
+
+        return {}
+    }
+
+    async init(body) {
+        const { connectionId, clientId, groupId, test = false } = body
+        const list = await loadJson(redisConnectionFilePath, [])
+        const item = list.find(item => item.id == connectionId)
+        console.log('init/item', item)
+        const { host, port } = item
+
+        // https://kafka.js.org/docs/1.10.0/configuration#connection-timeout
+        const kafka = new Kafka({
+            clientId,
+            brokers: [
+                `${host}:${port}`,
+            ],
+            connectionTimeout: 6000, // default 1000
+            retries: 1, // default 5
+            maxRetryTime: 8 * 1000, // default 30 s
         })
         g_kafka = kafka
 
@@ -68,9 +140,10 @@ export class KafkaService {
     
         await admin.connect()
 
-        const groupId = 'dms-group-01'
-        // const groupId = 'test-group-1676797911024'
-        console.log('consumer/groupId', groupId)
+        if (test) {
+            return {}
+        }
+
         const consumer = kafka.consumer({
             groupId,
         })
@@ -95,6 +168,28 @@ export class KafkaService {
         }
     }
 
+    async topicDetail(body) {
+        const { topic } = body
+        const topicOffsets = await g_kafka_admin.fetchTopicOffsets(topic)
+        const { groups } = await g_kafka_admin.listGroups()
+        for (let group of groups) {
+            const offsets = await g_kafka_admin.fetchOffsets({
+                groupId: group.groupId,
+                topics: [topic],
+            })
+            let partitions = []
+            if (offsets.length) {
+                partitions = offsets[0].partitions
+            }
+            group.partitions = partitions
+        }
+        return {
+            name: topic,
+            offsets: topicOffsets,
+            groups,
+        }
+    }
+
     async groups(_body) {
         // const topics = await g_kafka_admin.listTopics()
         const { groups } = await g_kafka_admin.listGroups()
@@ -110,7 +205,7 @@ export class KafkaService {
         // const { groups } = await g_kafka_admin.listGroups()
         const topic2OffsetMap = {}
         for (let topic of topics) {
-            const topicOffsets =await g_kafka_admin.fetchTopicOffsets(topic)
+            const topicOffsets = await g_kafka_admin.fetchTopicOffsets(topic)
             // [ { partition: 0, offset: '21', high: '21', low: '0' } ]
             // console.log('topicOffsets', topicOffsets)
             // topic.offsets = topicOffsets
