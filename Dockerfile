@@ -9,10 +9,10 @@ ADD ./docs /app/docs
 ADD ./package.json /app/package.json
 # ADD ./node_modules /app/node_modules
 
-RUN npm config set registry https://registry.npmmirror.com
-RUN npm i
+# RUN npm config set registry https://registry.npmmirror.com
+# RUN npm i
 
-RUN pwd
-RUN ls
+# RUN pwd
+# RUN ls
 
 CMD ["npm", "start"]
