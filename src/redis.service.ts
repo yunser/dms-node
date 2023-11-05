@@ -64,7 +64,7 @@ if (!fs.existsSync(appFolder)) {
 //     g_sqls = JSON.parse(sqlContentText)
 // }
 
-let historyDbFilePath = path.resolve(appFolder, 'redis-v0.5.db')
+let historyDbFilePath = path.resolve(appFolder, 'redis-v0.6.db')
 if (!fs.existsSync(historyDbFilePath)) {
     // fs.mkdirSync(yunserFolder)
     // fs.writeFileSync(historyDbFilePath, '', 'utf8')
@@ -137,12 +137,26 @@ async function historyClear() {
         // console.log('historyClear result', result, err)
     })
 }
-async function dbInsertKey(key) {
+async function dbInsertKey(name, key) {
     const dbId = uid(32)
-    const sql = `INSERT INTO redis_key VALUES('${dbId}', '${key}', '${moment().format('YYYY-MM-DD HH:mm:ss')}')`
+    const sql = `INSERT INTO redis_key VALUES('${dbId}', '${name}', '${key}', '${moment().format('YYYY-MM-DD HH:mm:ss')}')`
     // console.log('sql', sql)
     hdb.run(sql, (result, err) => {
         // console.log('insert result', result, err)
+    })
+}
+
+async function dbUpdateKey(id, data) {
+    // const dbId = uid(32)
+    const sql = `SELECT * FROM redis_key WHERE id = '${id}'`
+    // console.log('sql', sql)
+    hdb.all(sql, (result, err) => {
+        console.log('select result', result, err)
+        const sql = `UPDATE redis_key set 'key' = '${data.key}', 'name' = '${data.name}' WHERE id = '${id}'`
+        console.log('sql', sql)
+        hdb.all(sql, (result, err) => {
+            console.log('select result', result, err)
+        })
     })
 }
 
@@ -152,6 +166,10 @@ async function dbRemoveKey(id) {
     // console.log('sql', sql)
     hdb.run(sql, (result, err) => {
         // console.log('insert result', result, err)
+        console.log('result', result)
+        if (err) {
+            console.error(err)
+        }
     })
 }
 
@@ -178,7 +196,7 @@ async function getRedis(data): Promise<Redis> {
     return clients[connectionId].redis
 }
 
-function getRedisKeys(g_redis: Redis, keyword: string, { page, pageSize, cursor = 0 }): Promise<any> {
+function getRedisKeys(g_redis: Redis, keyword: string, { pageSize, cursor = 0 }): Promise<any> {
     return new Promise((resolve, reject) => {
         const keys = []
         // https://github.com/luin/ioredis/issues/1160
@@ -505,90 +523,93 @@ export class RedisService {
         }
 
         let debug = null
-        const type = await g_redis.type(key)
+        let type = null
         let size = null
         let value = null
         let items = null
         // EXISTS key
         let exists = await g_redis.exists(key)
         let commands = []
-        if (type == 'string') {
-            value = await g_redis.get(key) 
-            size = await g_redis.strlen(key)
-            commands.push(`GET ${key}`)
-        }
-        else if (type == 'list') {
-            const length = await g_redis.llen(key)
-            commands.push(`LLEN ${key}`)
-            items = await g_redis.lrange(key, 0, length - 1)
-            commands.push(`LRANGE ${key} 0 ${length - 1}`)
-        }
-        else if (type == 'set') {
-            items = await g_redis.smembers(key)
-            commands.push(`SMEMBERS ${key}`)
-        }
-        else if (type == 'hash') {
-            // items = await g_redis.hkeys(key)
-            const kvs = await g_redis.hgetall(key)
-            commands.push(`HGETALL ${key}`)
-            items = Object.keys(kvs).map(k => {
-                return {
-                    key: k,
-                    value: kvs[k],
-                }
-            })
-        }
-        else if (type == 'zset') {
-            commands.push(`ZCARD ${key}`)
-            const length = await g_redis.zcard(key)
-            commands.push(`ZRANGE ${key} 0 ${length - 1} WITHSCORES`)
-            let _items = await g_redis.zrange(key, 0, length - 1, 'WITHSCORES')
-            // console.log('zrange/_items', _items)
-            // const pipeline = g_redis.pipeline()
-            // _items.forEach(_key => pipeline.zscore(key, _key))
-            // const scores = await pipeline.exec()
-            
-            // debug = scores
-            items = []
-            for (let idx = 0; idx < _items.length; idx += 2) {
-                items.push({
-                    member: _items[idx],
-                    score: parseFloat(_items[idx + 1])
+        if (exists) {
+            type = await g_redis.type(key)
+            if (type == 'string') {
+                value = await g_redis.get(key) 
+                size = await g_redis.strlen(key)
+                commands.push(`GET ${key}`)
+            }
+            else if (type == 'list') {
+                const length = await g_redis.llen(key)
+                commands.push(`LLEN ${key}`)
+                items = await g_redis.lrange(key, 0, length - 1)
+                commands.push(`LRANGE ${key} 0 ${length - 1}`)
+            }
+            else if (type == 'set') {
+                items = await g_redis.smembers(key)
+                commands.push(`SMEMBERS ${key}`)
+            }
+            else if (type == 'hash') {
+                // items = await g_redis.hkeys(key)
+                const kvs = await g_redis.hgetall(key)
+                commands.push(`HGETALL ${key}`)
+                items = Object.keys(kvs).map(k => {
+                    return {
+                        key: k,
+                        value: kvs[k],
+                    }
                 })
             }
-            // items = _items.map((member, idx) => {
-            //     const [_null, score] = scores[idx]
-            //     return {
-            //         member,
-            //         score
-            //     }
-            // })
-        }
-        else if (type == 'stream') {
-            // const length = await g_redis.llen(key)
-            // commands.push(`LLEN ${key}`)
-            // items = await g_redis.lrange(key, 0, length - 1)
-            // commands.push(`LRANGE ${key} 0 ${length - 1}`)
-            commands.push(`XLEN ${key}`)
-            const length = await g_redis.xlen(key)
-            const range = await g_redis.xrange(key, '-', '+')
-            console.log('range', range)
-            // [
-            //     [ '1676710397017-0', [ '', '' ] ],
-            //     [ '1676710630887-0', [ 'f1', 'v1', 'f2', 'v2' ] ],
-            //     [ '1676710701227-0', [ 'f3', 'v3' ] ],
-            //     [ '1676711299032-0', [ 'f4', 'v4', 'f5', 'v5' ] ]
-            //   ]
-
-            items = range.map(item => {
-                return {
-                    id: item[0],
-                    fields: item[1],
+            else if (type == 'zset') {
+                commands.push(`ZCARD ${key}`)
+                const length = await g_redis.zcard(key)
+                commands.push(`ZRANGE ${key} 0 ${length - 1} WITHSCORES`)
+                let _items = await g_redis.zrange(key, 0, length - 1, 'WITHSCORES')
+                // console.log('zrange/_items', _items)
+                // const pipeline = g_redis.pipeline()
+                // _items.forEach(_key => pipeline.zscore(key, _key))
+                // const scores = await pipeline.exec()
+                
+                // debug = scores
+                items = []
+                for (let idx = 0; idx < _items.length; idx += 2) {
+                    items.push({
+                        member: _items[idx],
+                        score: parseFloat(_items[idx + 1])
+                    })
                 }
-            })
-        }
-        else {
-            throw new Error('unknown type')
+                // items = _items.map((member, idx) => {
+                //     const [_null, score] = scores[idx]
+                //     return {
+                //         member,
+                //         score
+                //     }
+                // })
+            }
+            else if (type == 'stream') {
+                // const length = await g_redis.llen(key)
+                // commands.push(`LLEN ${key}`)
+                // items = await g_redis.lrange(key, 0, length - 1)
+                // commands.push(`LRANGE ${key} 0 ${length - 1}`)
+                commands.push(`XLEN ${key}`)
+                const length = await g_redis.xlen(key)
+                const range = await g_redis.xrange(key, '-', '+')
+                console.log('range', range)
+                // [
+                //     [ '1676710397017-0', [ '', '' ] ],
+                //     [ '1676710630887-0', [ 'f1', 'v1', 'f2', 'v2' ] ],
+                //     [ '1676710701227-0', [ 'f3', 'v3' ] ],
+                //     [ '1676711299032-0', [ 'f4', 'v4', 'f5', 'v5' ] ]
+                //   ]
+    
+                items = range.map(item => {
+                    return {
+                        id: item[0],
+                        fields: item[1],
+                    }
+                })
+            }
+            else {
+                throw new Error('unknown type')
+            }
         }
 
         insertCommandsPro({
@@ -779,6 +800,12 @@ export class RedisService {
         if (!key) {
             throw new Error('key 不能为空')
         }
+
+        if ((g_redis as any).httpProxyUrl) {
+            const res = await axios.post(`${(g_redis as any).httpProxyUrl}/redis/config`, data)
+            return res.data
+        }
+        
         dbInsertCommands([
             `DEL ${key}`
         ])
@@ -848,8 +875,16 @@ export class RedisService {
         return {}
     }
 
+    async health(body) {
+        const { connectionId } = body
+        const content = fs.readFileSync(redisConnectionFilePath, 'utf-8')
+        const connections = JSON.parse(content)
+        const connection = connections.find(item => item.id == connectionId)
+        return await this.connect(connection)
+    }
+
     async connect(config) {
-        const connectionId = uid(32)
+        const connectionId = `redis_${uid(32 - 6)}`
         const {
             host,
             port,
@@ -1000,7 +1035,6 @@ export class RedisService {
 
         const total = await g_redis.dbsize()
         let { cursor: _cursor, list } = await getRedisKeys(g_redis, keyword, {
-            page,
             pageSize,
             cursor,
         })
@@ -1064,9 +1098,14 @@ export class RedisService {
 
     async keyCreate(data) {
         // const g_redis = await getRedis(data)
-        const { key } = data
-        dbInsertKey(key)
+        const { name, key } = data
+        dbInsertKey(name, key)
         return {}
+    }
+
+    async keyUpdate(params) {
+        const { id, data } = params
+        dbUpdateKey(id, data)
     }
 
     async keyRemove(data) {
@@ -1079,13 +1118,18 @@ export class RedisService {
         const { page = 1, pageSize = 10, keyword } = params
         // console.log('historyList', )
 
-        const countSql = `SELECT COUNT(*) FROM redis_history`
+        let whereSql = ''
+        if (keyword) {
+            whereSql = ` WHERE name LIKE '%${keyword}%' OR key LIKE '%${keyword}%'`
+        }
+        let countSql = `SELECT COUNT(*) FROM redis_key${whereSql}`
         const countResults = await dbQueryList(countSql)
         // console.log('countResults', countResults)
         const total = countResults[0]['COUNT(*)']
 
         const offset = (page - 1) * pageSize
-        const sql = `SELECT * FROM redis_key ORDER BY create_time DESC LIMIT ${offset}, ${pageSize}`
+        const sql = `SELECT * FROM redis_key${whereSql} ORDER BY create_time DESC LIMIT ${offset}, ${pageSize}`
+        console.log('sql', sql)
         const list = await dbQueryList(sql)
         // db.each("", (err, row) => {
         //     console.log('row', err, row)
