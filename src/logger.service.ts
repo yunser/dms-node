@@ -6,7 +6,7 @@ import * as moment from 'moment'
 import Sls20201230, * as $Sls20201230 from '@alicloud/sls20201230';
 // 依赖的模块可通过下载工程中的模块依赖文件或右上角的获取 SDK 依赖信息查看
 import OpenApi, * as $OpenApi from '@alicloud/openapi-client';
-import { loadDbJson, pushDbJson } from './utils'
+import { loadDbJson, pushDbJson, writeDbJson } from './utils'
 // import Util, * as $Util from '@alicloud/tea-util';
 // import * as $tea from '@alicloud/tea-typescript';
 
@@ -27,9 +27,13 @@ export class LoggerService {
 
     async historyPush(body) {
         const { content } = body
-        pushDbJson('logger.history.json', {
+        const item = {
             id: uid(32),
             content,
-        })
+        }
+        let list = await loadDbJson('logger.history.json', [])
+        list = list.filter(item => item.content != content)
+        list.unshift(item)
+        writeDbJson('logger.history.json', list)
     }
 }
