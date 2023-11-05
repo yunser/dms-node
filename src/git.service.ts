@@ -6,6 +6,8 @@ import { exec } from "child_process";
 import * as path from 'path'
 import * as os from 'os'
 
+// maxBuffer 不设置有时会报错：
+// stdout maxBuffer length exceeded
 function localExec(cmd: string): Promise<string> {
     return new Promise((resolve, reject) => {
         exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
@@ -139,24 +141,77 @@ export class GitService {
     }
 
     async fileDiscard(body) {
-        const { projectPath, filePath, type, line, lineContent } = body
+        const { projectPath, filePath, lines = [] } = body
+        const _filePath = path.resolve(projectPath, filePath)
+        const content = fs.readFileSync(_filePath, 'utf-8')
+        const rawLines = content.split('\n')
+        const newLines = []
+        rawLines.forEach((rawLine, index) => {
+            const fLine = lines.find(item => item.line == index)
+            if (fLine) {
+                const { type, line, content } = fLine
+                if (type == 'added') {
+                    // TODO hack LF CRLF
+                    if (rawLines[line].trim() != content.trim()) {
+                        throw new Error('check content fail')
+                    }
+                    // rawLines.splice(line, 1)
+                }
+                else if (type == 'deleted') {
+                    // rawLines.splice(line + 1, 0, content)
+                    newLines.push(rawLine)
+                    newLines.push(content)
+                }
+                else {
+                    throw new Error('type is error')
+                }
+            }
+            else {
+                newLines.push(rawLine)
+            }
+        })
+        // for (let rawLine of rawLines) {
+
+        // }
+        fs.writeFileSync(_filePath, newLines.join('\n'))
+    }
+
+    async fileConflictResolve(body) {
+        const { projectPath, filePath, type, start, center, end, } = body
         const _filePath = path.resolve(projectPath, filePath)
         const content = fs.readFileSync(_filePath, 'utf-8')
         const lines = content.split('\n')
-        if (type == 'added') {
+        let newLines: string[] = []
+        if (type == 'current') {
             // TODO hack LF CRLF
-            if (lines[line].trim() != lineContent.trim()) {
-                throw new Error('check content fail')
-            }
-            lines.splice(line, 1)
+            // if (lines[line].trim() != lineContent.trim()) {
+            //     throw new Error('check content fail')
+            // }
+            // lines.splice(line, 1)
+            newLines = lines.filter((_line, index) => {
+                return (index < start)
+                    || ((index > start) && (index < center))
+                    || (index > end)
+            })
         }
-        else if (type == 'deleted') {
-            lines.splice(line + 1, 0, lineContent)
+        else if (type == 'incoming') {
+            newLines = lines.filter((_line, index) => {
+                return (index < start)
+                    || ((index > center) && (index < end))
+                    || (index > end)
+            })
+        }
+        else if (type == 'both') {
+            newLines = lines.filter((_line, index) => {
+                return (index != start)
+                    && (index != center)
+                    && (index != end)
+            })
         }
         else {
             throw new Error('type is error')
         }
-        fs.writeFileSync(_filePath, lines.join('\n'))
+        fs.writeFileSync(_filePath, newLines.join('\n'))
     }
 
     async add(body) {
@@ -718,6 +773,21 @@ export class GitService {
                 }
             ],
         }
+    }
+    
+    async mergeAbort(body) {
+        const { projectPath } = body
+
+        // 这样的写法会报错：
+        // 致命错误：没有要终止的合并（MERGE_HEAD 丢失）。
+        // 原因未知
+        const git = await this.getClient(projectPath)
+        const commands = ['merge', '--abort']
+        await this._command(git, commands)
+
+        // const cmd = `cd ${projectPath} && git merge --abort`
+        // await localExec(cmd)
+        return {}
     }
 
     async fetch(body) {
